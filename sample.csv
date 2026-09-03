@@ -1,0 +1,15 @@
+pair_id,reference_name,query_name,ref_genome_length,qry_genome_length,block_id,ref_start,ref_end,qry_start,qry_end,strand,identity_pct,ref_genes,qry_genes,event_type
+PAIR_001_ECOLI,Escherichia coli K-12 MG1655,Escherichia coli O157:H7 EDL933,4641652,5528445,BLK_01_ORI,0,1200000,0,1350000,+,99.1,dnaA;dnaN;gyrB;recF;gyrA,dnaA;dnaN;gyrB;recF;gyrA,collinear
+PAIR_001_ECOLI,Escherichia coli K-12 MG1655,Escherichia coli O157:H7 EDL933,4641652,5528445,BLK_02_INV_TER,1200000,2400000,3800000,2500000,-,98.4,lacZ;lacY;cysK;trpA;trpB,trpB;trpA;cysK;lacY;lacZ,inversion
+PAIR_001_ECOLI,Escherichia coli K-12 MG1655,Escherichia coli O157:H7 EDL933,4641652,5528445,BLK_03_CORE,2400000,3800000,3800000,5000000,+,98.9,hisA;hisB;rpoB;rpoC;atpA,hisA;hisB;rpoB;rpoC;atpA,collinear
+PAIR_001_ECOLI,Escherichia coli K-12 MG1655,Escherichia coli O157:H7 EDL933,4641652,5528445,BLK_04_TER,3800000,4641652,5000000,5528445,+,98.2,ftsZ;groEL;dnaK;tufA,ftsZ;groEL;dnaK;tufA,collinear
+PAIR_002_SALMONELLA,Salmonella enterica LT2,Salmonella enterica CT18,4857432,4809037,SB_01_SPI1,0,1500000,0,1490000,+,99.4,thrA;thrB;carA;dnaJ,thrA;thrB;carA;dnaJ,collinear
+PAIR_002_SALMONELLA,Salmonella enterica LT2,Salmonella enterica CT18,4857432,4809037,SB_02_INV_SPI2,1500000,3100000,3120000,1520000,-,99.1,invA;hilA;prgH;sseA,sseA;prgH;hilA;invA,inversion
+PAIR_002_SALMONELLA,Salmonella enterica LT2,Salmonella enterica CT18,4857432,4809037,SB_03_ISLAND,3100000,4857432,3120000,4809037,+,99.3,viaB;sopB;fliC;clpB,viaB;sopB;fliC;clpB,collinear
+PAIR_003_PSEUDOMONAS,Pseudomonas aeruginosa PAO1,Pseudomonas aeruginosa LESB58,6264404,6601757,PBLK_01_CORE,0,2000000,0,2100000,+,98.8,dnaA;oprF;algD,dnaA;oprF;algD,collinear
+PAIR_003_PSEUDOMONAS,Pseudomonas aeruginosa PAO1,Pseudomonas aeruginosa LESB58,6264404,6601757,PBLK_02_TOX,2000000,4200000,2100000,4400000,+,98.5,toxA;lasB;pcrV,toxA;lasB;pcrV,collinear
+PAIR_003_PSEUDOMONAS,Pseudomonas aeruginosa PAO1,Pseudomonas aeruginosa LESB58,6264404,6601757,PBLK_03_INV_EFFLUX,4200000,5500000,6000000,4700000,-,97.9,pyoS2;mexA;mexB,mexB;mexA;pyoS2,inversion
+PAIR_003_PSEUDOMONAS,Pseudomonas aeruginosa PAO1,Pseudomonas aeruginosa LESB58,6264404,6601757,PBLK_04_TER,5500000,6264404,6000000,6601757,+,98.1,clpP;rpoD,clpP;rpoD,collinear
+PAIR_004_KLEBSIELLA,Klebsiella pneumoniae MGH78578,Klebsiella pneumoniae ST258,5315120,5456200,KBLK_01_CORE,0,2500000,0,2550000,+,99.2,dnaA;gyrB;parC;ompA,dnaA;gyrB;parC;ompA,collinear
+PAIR_004_KLEBSIELLA,Klebsiella pneumoniae MGH78578,Klebsiella pneumoniae ST258,5315120,5456200,KBLK_02_ISLAND_KPC,2500000,3200000,2550000,3400000,+,91.5,cpsA;cpsB;blaSHV;wzi,cpsA;cpsB;blaKPC2;wzi,translocation
+PAIR_004_KLEBSIELLA,Klebsiella pneumoniae MGH78578,Klebsiella pneumoniae ST258,5315120,5456200,KBLK_03_TER,3200000,5315120,3400000,5456200,+,98.7,tonB;mrkA;fimA;ugd,tonB;mrkA;fimA;ugd,collinear

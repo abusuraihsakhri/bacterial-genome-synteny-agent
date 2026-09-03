@@ -1,4 +1,4 @@
-name: Bacterial Genome Synteny Engine CI/CD & Security Verification
+name: Bacterial Genome Synteny CI/CD
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ master, main ]
 
 jobs:
-  test-and-audit:
+  test-and-verify:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -24,17 +24,18 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install fastapi uvicorn pydantic pytest
+        pip install pytest
 
     - name: Run Pytest Suite
       run: |
-        pytest -v
+        python -m pytest -p no:zarr -v
 
-    - name: Security SAST & Zero-PHI Audit
+    - name: Run CLI Smoke Tests
       run: |
-        python -c "
-        from agents.base import PHIGuard, AuditLogger
-        import pytest
-        assert AuditLogger.verify_integrity() is True
-        print('Security & Zero-PHI Audit Passed!')
-        "
+        python cli.py --list-benchmarks
+        python cli.py --benchmark ecoli_k12_vs_o157 --dotplot
+        python cli.py --pangenome
+        python cli.py --primers
+        python cli.py batch -i sample.csv -o out_ci.csv
+        python -c "import os; assert os.path.exists('out_ci.csv'); print('CLI Smoke Tests Passed!')"
+        rm -f out_ci.csv

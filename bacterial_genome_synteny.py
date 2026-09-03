@@ -525,3 +525,169 @@ def get_curated_synteny_benchmarks() -> Dict[str, Dict[str, Any]]:
             ]
         }
     }
+
+
+def parse_gene_list(val: str) -> List[str]:
+    """Parse comma-separated or semicolon-separated gene lists from CSV field."""
+    if not val or not val.strip():
+        return []
+    clean = val.strip().strip('"').strip("'")
+    if not clean:
+        return []
+    delimiter = ";" if ";" in clean else ","
+    return [g.strip() for g in clean.split(delimiter) if g.strip()]
+
+
+def process_synteny_batch_csv(input_csv_path: str, output_csv_path: str) -> List[Dict[str, Any]]:
+    """
+    Process batch CSV file containing comparative bacterial genomics parameters.
+    Supports either:
+    1) Per-comparison pairs (grouped rows by pair_id / ref_name+qry_name or single row per block),
+       aggregating blocks and computing full synteny metrics (ANI, conserved adjacency score,
+       Spearman's rho, Kendall's tau, breakpoint count, collinear/inverted block counts).
+    2) Detailed output with both block-level and genome-level synteny metrics.
+
+    Writes output CSV with enriched comparative metrics and returns list of result summaries.
+    """
+    import csv
+
+    with open(input_csv_path, mode="r", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        if not reader.fieldnames:
+            raise ValueError(f"Input CSV file '{input_csv_path}' is empty or invalid.")
+        rows = list(reader)
+
+    if not rows:
+        raise ValueError(f"No records found in CSV file '{input_csv_path}'.")
+
+    # Group rows by comparison pair (pair_id or reference_name+query_name)
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    for idx, row in enumerate(rows):
+        pair_id = row.get("pair_id") or row.get("comparison_id") or f"{row.get('reference_name', 'ref')}_vs_{row.get('query_name', 'qry')}"
+        if not pair_id:
+            pair_id = f"comparison_{idx + 1}"
+        if pair_id not in grouped:
+            grouped[pair_id] = []
+        grouped[pair_id].append(row)
+
+    results: List[Dict[str, Any]] = []
+
+    for pair_id, pair_rows in grouped.items():
+        first = pair_rows[0]
+        ref_name = first.get("reference_name") or first.get("ref_name") or "Reference_Genome"
+        qry_name = first.get("query_name") or first.get("qry_name") or "Query_Genome"
+
+        try:
+            ref_len = int(float(first.get("ref_genome_length") or first.get("ref_length") or 5_000_000))
+        except (ValueError, TypeError):
+            ref_len = 5_000_000
+
+        try:
+            qry_len = int(float(first.get("qry_genome_length") or first.get("qry_length") or 5_000_000))
+        except (ValueError, TypeError):
+            qry_len = 5_000_000
+
+        blocks: List[SyntenyBlock] = []
+        for b_idx, r in enumerate(pair_rows):
+            block_id = r.get("block_id") or f"BLK_{b_idx + 1}"
+            try:
+                r_start = int(float(r.get("ref_start", 0)))
+                r_end = int(float(r.get("ref_end", ref_len)))
+                q_start = int(float(r.get("qry_start", 0)))
+                q_end = int(float(r.get("qry_end", qry_len)))
+            except (ValueError, TypeError):
+                r_start, r_end, q_start, q_end = 0, ref_len, 0, qry_len
+
+            strand = r.get("strand", "+").strip()
+            if strand not in ("+", "-"):
+                strand = "-" if "inv" in block_id.lower() or "inv" in r.get("event_type", "").lower() else "+"
+
+            try:
+                ident = float(r.get("identity_pct", 98.0))
+            except (ValueError, TypeError):
+                ident = 98.0
+
+            ref_genes = parse_gene_list(r.get("ref_genes", ""))
+            qry_genes = parse_gene_list(r.get("qry_genes", ""))
+
+            # If no gene list is provided, infer from ortholog pair fields
+            if not ref_genes and r.get("ref_gene"):
+                ref_genes = [r["ref_gene"]]
+            if not qry_genes and r.get("qry_gene"):
+                qry_genes = [r["qry_gene"]]
+
+            b = SyntenyBlock(
+                block_id=block_id,
+                ref_start=r_start,
+                ref_end=r_end,
+                qry_start=q_start,
+                qry_end=q_end,
+                strand=strand,
+                identity_pct=ident,
+                ref_genes=ref_genes,
+                qry_genes=qry_genes,
+            )
+            blocks.append(b)
+
+        analysis = SyntenyAnalyzer.analyze(ref_name, qry_name, ref_len, qry_len, blocks)
+
+        # Detect genomic islands / horizontal gene transfer candidate regions
+        # Heuristic: segments with >15% length disparity or reduced sequence identity (<90%)
+        island_candidates = 0
+        for b in blocks:
+            len_ratio = min(b.ref_length, b.qry_length) / max(b.ref_length, b.qry_length) if max(b.ref_length, b.qry_length) > 0 else 1.0
+            if b.identity_pct < 92.0 or len_ratio < 0.70:
+                island_candidates += 1
+
+        res_dict = {
+            "pair_id": pair_id,
+            "reference_name": analysis.reference_name,
+            "query_name": analysis.query_name,
+            "ref_genome_length": analysis.ref_genome_length,
+            "qry_genome_length": analysis.qry_genome_length,
+            "num_blocks": analysis.num_blocks,
+            "collinear_blocks": analysis.collinear_blocks,
+            "inverted_blocks": analysis.inverted_blocks,
+            "ani_pct": analysis.ani_pct,
+            "ref_coverage_pct": analysis.ref_coverage_pct,
+            "qry_coverage_pct": analysis.qry_coverage_pct,
+            "taxonomic_call": analysis.taxonomic_call,
+            "conserved_adjacency_score": analysis.conserved_adjacency_score,
+            "spearman_rho": analysis.spearman_rho,
+            "kendall_tau": analysis.kendall_tau,
+            "breakpoint_count": analysis.breakpoint_count,
+            "genomic_island_candidates": island_candidates,
+            "synteny_status": "CONSERVED_SYNTENY" if analysis.conserved_adjacency_score >= 0.70 and analysis.inverted_blocks == 0
+                              else ("REARRANGED_INVERSIONS" if analysis.inverted_blocks > 0 else "PARTIALLY_CONSERVED"),
+        }
+        results.append(res_dict)
+
+    fieldnames = [
+        "pair_id",
+        "reference_name",
+        "query_name",
+        "ref_genome_length",
+        "qry_genome_length",
+        "num_blocks",
+        "collinear_blocks",
+        "inverted_blocks",
+        "ani_pct",
+        "ref_coverage_pct",
+        "qry_coverage_pct",
+        "taxonomic_call",
+        "conserved_adjacency_score",
+        "spearman_rho",
+        "kendall_tau",
+        "breakpoint_count",
+        "genomic_island_candidates",
+        "synteny_status",
+    ]
+
+    with open(output_csv_path, mode="w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for r in results:
+            writer.writerow(r)
+
+    return results
+

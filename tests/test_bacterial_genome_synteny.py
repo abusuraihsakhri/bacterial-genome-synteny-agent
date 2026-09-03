@@ -15,6 +15,7 @@ Covers:
 
 import json
 import math
+import os
 import sys
 import unittest
 from io import StringIO
@@ -248,5 +249,85 @@ class TestBenchmarksAndCLI(unittest.TestCase):
             self.assertEqual(ret, 1)
 
 
+class TestBatchProcessingAndSubcommands(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.input_csv = os.path.join(self.temp_dir.name, "test_input.csv")
+        self.output_csv = os.path.join(self.temp_dir.name, "test_output.csv")
+
+        # Create test CSV
+        with open(self.input_csv, "w", encoding="utf-8") as f:
+            f.write(
+                "pair_id,reference_name,query_name,ref_genome_length,qry_genome_length,block_id,ref_start,ref_end,qry_start,qry_end,strand,identity_pct,ref_genes,qry_genes,event_type\n"
+                "TEST_PAIR_1,E. coli K12,E. coli O157,4600000,5500000,BLK1,0,2000000,0,2100000,+,99.2,dnaA;gyrB,dnaA;gyrB,collinear\n"
+                "TEST_PAIR_1,E. coli K12,E. coli O157,4600000,5500000,BLK2,2000000,4600000,5000000,2400000,-,98.5,lacZ;trpA,trpA;lacZ,inversion\n"
+                "TEST_PAIR_2,S. enterica LT2,S. enterica CT18,4800000,4800000,BLK1,0,4800000,0,4800000,+,99.5,invA;sseA,invA;sseA,collinear\n"
+            )
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_process_synteny_batch_csv_function(self):
+        from bacterial_genome_synteny import process_synteny_batch_csv
+        res = process_synteny_batch_csv(self.input_csv, self.output_csv)
+        self.assertEqual(len(res), 2)
+        self.assertEqual(res[0]["pair_id"], "TEST_PAIR_1")
+        self.assertEqual(res[0]["inverted_blocks"], 1)
+        self.assertEqual(res[0]["collinear_blocks"], 1)
+        self.assertEqual(res[1]["pair_id"], "TEST_PAIR_2")
+        self.assertEqual(res[1]["inverted_blocks"], 0)
+        self.assertTrue(os.path.exists(self.output_csv))
+
+    def test_cli_batch_subcommand(self):
+        with patch('sys.stdout', new=StringIO()) as fake_out:
+            ret = cli.main(["batch", "--input", self.input_csv, "--output", self.output_csv])
+            self.assertEqual(ret, 0)
+            self.assertIn("BATCH COMPARATIVE SYNTENY PROCESSING COMPLETE", fake_out.getvalue())
+            self.assertTrue(os.path.exists(self.output_csv))
+
+    def test_cli_batch_subcommand_json(self):
+        with patch('sys.stdout', new=StringIO()) as fake_out:
+            ret = cli.main(["batch", "-i", self.input_csv, "-o", self.output_csv, "--json"])
+            self.assertEqual(ret, 0)
+            data = json.loads(fake_out.getvalue())
+            self.assertEqual(data["status"], "SUCCESS")
+            self.assertEqual(data["comparisons_processed"], 2)
+
+    def test_cli_root_batch_flags(self):
+        with patch('sys.stdout', new=StringIO()) as fake_out:
+            ret = cli.main(["-i", self.input_csv, "-o", self.output_csv])
+            self.assertEqual(ret, 0)
+            self.assertIn("BATCH COMPARATIVE SYNTENY PROCESSING COMPLETE", fake_out.getvalue())
+
+    def test_cli_benchmark_subcommand(self):
+        with patch('sys.stdout', new=StringIO()) as fake_out:
+            ret = cli.main(["benchmark", "ecoli_k12_vs_o157", "--dotplot"])
+            self.assertEqual(ret, 0)
+            output = fake_out.getvalue()
+            self.assertIn("BACTERIAL GENOME SYNTENY REPORT", output)
+            self.assertIn("ASCII Comparative Synteny Dotplot", output)
+
+    def test_cli_pangenome_subcommand(self):
+        with patch('sys.stdout', new=StringIO()) as fake_out:
+            ret = cli.main(["pangenome", "--json"])
+            self.assertEqual(ret, 0)
+            data = json.loads(fake_out.getvalue())
+            self.assertIn("total_families", data)
+
+    def test_cli_primers_subcommand(self):
+        with patch('sys.stdout', new=StringIO()) as fake_out:
+            ret = cli.main(["primers", "--json"])
+            self.assertEqual(ret, 0)
+            data = json.loads(fake_out.getvalue())
+            self.assertTrue(data["overall_qc_passed"])
+
+    def test_cli_batch_nonexistent_file(self):
+        with patch('sys.stderr', new=StringIO()) as fake_err:
+            ret = cli.main(["batch", "-i", "nonexistent_file_xyz.csv", "-o", self.output_csv])
+            self.assertEqual(ret, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
+
